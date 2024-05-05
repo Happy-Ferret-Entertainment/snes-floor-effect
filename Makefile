@@ -15,10 +15,14 @@ TARGET := FLOOREFFECT
 GTITLE := -ht"$(TARGET)"
 
 all: level sprites $(ROMNAME).sfc
+	@echo MAKE NTSC VERSION
 	$(SNTOOLS) -hi! $(GTITLE) $(ROMNAME).sfc
 	cp $(ROMNAME).sfc $(ROMNAME)_ntsc.sfc
+	cp $(ROMNAME).sym $(ROMNAME)_ntsc.sym
+	@echo MAKE PAL VERSION
 	$(SNTOOLS) -hi! -hS! $(GTITLE) -hc03 $(ROMNAME).sfc
 	mv $(ROMNAME).sfc $(ROMNAME)_pal.sfc
+	mv $(ROMNAME).sym $(ROMNAME)_pal.sym
 
 cleanRom:
 	@echo clean rom
