@@ -15,26 +15,14 @@ extern char oam1Pic, oam1Pic_end;
 
 // RAM
 
-u16 scrollBackgrounds;
 u8 loadingCounters[7];
 u8 loadingCounterIndex;
-u16 moveTmp;
+u16 scrollBackgrounds;
+s16 moveTmp;
+u16 hdmaState;
 unsigned short pad0;
 unsigned short padDown0;
 unsigned short padUp0;
-
-/*!\brief Handle Player move input.
-*/
-void handlePlayerMoveInput() {
-    scrollBackgrounds = 0;
-
-    if (pad0 & KEY_RIGHT) {
-        scrollBackgrounds = 1;
-
-    } else if (pad0 & KEY_LEFT) {
-        scrollBackgrounds = 1;
-    }
-}
 
 /*!\brief Initialize time counters.
 */
@@ -49,7 +37,7 @@ void initTime() {
 	\param time the time to wait for.
 	\param index the time counter index.
 */
-u8 waitForTimeEx(u16 time, u16 index) {
+u16 waitForTimeEx(u16 time, u16 index) {
     loadingCounters[index] += 1;
     if (loadingCounters[index] == time) {
         loadingCounters[index] = 0;
@@ -63,18 +51,26 @@ u8 waitForTimeEx(u16 time, u16 index) {
 	\param index the time counter index.
 	\param offset the offset.
 */
-u8 getParallaxOffset(u16 time, u16 index, u16 offset) {
-    if (scrollBackgrounds == 1) {
-        if (waitForTimeEx(time, index) == 1) {
-            return 1 + offset;
-        }
+s16 getParallaxOffset(u16 time, u16 index, s16 offset) {
+    if (waitForTimeEx(time, index) == 1) {
         return offset;
     }
-
-    if (waitForTimeEx(time, index) == 1) {
-        return 1;
-    }
     return 0;
+}
+
+/*!\brief Handle Player move input.
+*/
+void handlePlayerMoveInput() {
+    scrollBackgrounds = 0;
+
+    if (pad0 & KEY_RIGHT) {
+        moveTmp = -1;
+        scrollBackgrounds = 1;
+
+    } else if (pad0 & KEY_LEFT) {
+        moveTmp = 1;
+        scrollBackgrounds = 1;
+    }
 }
 
 /*!\brief Initialize the sprite engine.
@@ -89,6 +85,8 @@ void initSpriteEngine(u8 oamSize) {
 */
 void initLevel() {
     scrollBackgrounds = 0;
+    hdmaState = 0;
+
     initTime();
 
     bgSetMapPtr(BG0, 0, SC_64x32);
@@ -113,21 +111,20 @@ void initLevel() {
     bgSetDisable(BG3);
 
     // Workaround for SNES
-    bgSetScroll(BG0, 128, -1);
+    bgSetScroll(BG0, 0, -1);
 
     // Configure the Home Background Scrolling.
     // Init HDMA table
     // Note: the maximum value is 128
-    HDMATable16[0] = 16; *(u16*) &(HDMATable16+1) = 0;
+    HDMATable16[0] = 128; *(u16*) &(HDMATable16+1) = 0;
     HDMATable16[3] = 8; *(u16*) &(HDMATable16+4) = 0;
-    HDMATable16[6] = 8; *(u16*) &(HDMATable16+7) = 0;
-    HDMATable16[9] = 40; *(u16*) &(HDMATable16+10) = 0;
-    HDMATable16[12] = 24; *(u16*) &(HDMATable16+13) = 0;
-    HDMATable16[15] = 24; *(u16*) &(HDMATable16+16) = 0;
-    HDMATable16[18] = 24; *(u16*) &(HDMATable16+19) = 0;
-    HDMATable16[21] = 48; *(u16*) &(HDMATable16+22) = 0;
-    HDMATable16[24] = 32; *(u16*) &(HDMATable16+25) = 0;
-    HDMATable16[27] = 0x00; // end of hdma table
+    HDMATable16[6] = 48; *(u16*) &(HDMATable16+7) = 0;
+    HDMATable16[9] = 10; *(u16*) &(HDMATable16+10) = 0;
+    HDMATable16[12] = 10; *(u16*) &(HDMATable16+13) = 0;
+    HDMATable16[15] = 4; *(u16*) &(HDMATable16+16) = 0;
+    HDMATable16[18] = 16; *(u16*) &(HDMATable16+19) = 0;
+    HDMATable16[21] = 32; *(u16*) &(HDMATable16+22) = 0;
+    HDMATable16[24] = 0x00; // end of hdma table
 
     initSpriteEngine(OBJ_SIZE8_L16);
     
@@ -150,15 +147,32 @@ void initLevel() {
 
 /*!\brief Scroll BG2 by reading moveTmp value.
 */
-void scrollBg2() {
+void scrollBackgroundHDMA() {
     if(scrollBackgrounds == 1) {
-        *(u16*) &(HDMATable16+10) += getParallaxOffset(7, 3, moveTmp);
-        *(u16*) &(HDMATable16+13) += getParallaxOffset(6, 4, moveTmp);
-        *(u16*) &(HDMATable16+16) += getParallaxOffset(5, 5, moveTmp);
+        setParallaxScrolling(BG0);
+        
+        switch (hdmaState) {
+            case 0:
+                *(u16*) &(HDMATable16+19) += getParallaxOffset(1, 0, moveTmp);
+                hdmaState = 1;
 
-        *(u16*) &(HDMATable16+19) = 0;
+                HDMATable16[0] = 128; *(u16*) &(HDMATable16+1) = 0;
+                HDMATable16[3] = 8; *(u16*) &(HDMATable16+4) = 0;
+                HDMATable16[6] = 48; *(u16*) &(HDMATable16+7) = 0;
+                HDMATable16[9] = 10; *(u16*) &(HDMATable16+10) = 0;
+                HDMATable16[12] = 10; *(u16*) &(HDMATable16+13) = 0;
+                HDMATable16[15] = 4; *(u16*) &(HDMATable16+16) = 0;
+                HDMATable16[18] = 8; *(u16*) &(HDMATable16+19) = 0;
+                HDMATable16[21] = 8; *(u16*) &(HDMATable16+22) = 0;
+                HDMATable16[24] = 32; *(u16*) &(HDMATable16+25) = 0;
+                HDMATable16[27] = 0x00; // end of hdma table
+                break;
 
-        *(u16*) &(HDMATable16+22) += getParallaxOffset(1, 6, moveTmp);
+            case 1:
+                *(u16*) &(HDMATable16+22) += getParallaxOffset(1, 0, moveTmp);
+                hdmaState = 2;
+                break;
+        }
     }
 }
 
@@ -173,8 +187,7 @@ void updateLevel() {
 
     handlePlayerMoveInput();
 
-    moveTmp = 1;
-    scrollBg2();
+    scrollBackgroundHDMA();
 }
 
 /*!\brief Clear the Level screen.
